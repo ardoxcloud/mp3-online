@@ -1,20 +1,19 @@
 import streamlit as st
 import yt_dlp
 import os
-import time
 
-# --- JUDUL WEBSITE ---
-st.set_page_config(page_title="MP3 Downloader Online", page_icon="🎵")
+# --- KONFIGURASI HALAMAN ---
+st.set_page_config(page_title="MP3 Downloader", page_icon="🎵")
 st.title("🎵 MP3 Downloader Online")
-st.write("Copy link YouTube, paste di bawah, download MP3-nya. Gratis!")
+st.write("Masukkan Link YouTube, langsung jadi MP3!")
 
 # --- FUNGSI DOWNLOAD ---
 def download_mp3(url):
-    # Buat folder sementara di server
+    # Buat folder sementara
     if not os.path.exists("downloads"):
         os.makedirs("downloads")
 
-    # Opsi yt-dlp (Tanpa FFmpeg path khusus, karena di server biasanya sudah auto)
+    # Konfigurasi yt-dlp dengan PENYAMARAN (Agar tidak error 403)
     ydl_opts = {
         'format': 'bestaudio/best',
         'postprocessors': [{
@@ -25,45 +24,52 @@ def download_mp3(url):
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
         'noplaylist': True,
+        # --- INI BAGIAN PENTINGNYA ---
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://www.youtube.com/',
+        }
+        # -----------------------------
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             judul = info.get('title', 'Audio')
-            filename = ydl.prepare_filename(info).replace(".webm", ".mp3").replace(".m4a", ".mp3")
-            return filename, judul
             
+            # Cari nama file aslinya
+            filename = ydl.prepare_filename(info)
+            # Ubah ekstensi manual ke mp3 untuk memastikan path benar
+            final_filename = filename.rsplit('.', 1)[0] + ".mp3"
+            
+            return final_filename, judul
     except Exception as e:
-        st.error(f"Error: {e}")
-        return None, None
+        return None, str(e)
 
-# --- INPUT USER ---
+# --- TAMPILAN UTAMA ---
 url = st.text_input("Paste Link YouTube di sini:")
 
-if st.button("🚀 Proses ke MP3"):
+if st.button("🚀 Proses Sekarang"):
     if url:
-        with st.spinner("Sedang mendownload & konversi di server..."):
+        with st.spinner("Sedang memproses... Tunggu sebentar..."):
             file_path, judul = download_mp3(url)
             
             if file_path and os.path.exists(file_path):
                 st.success(f"Berhasil! Lagu: {judul}")
                 
-                # BACA FILE MP3 AGAR BISA DIDOWNLOAD USER
+                # Baca file MP3
                 with open(file_path, "rb") as f:
                     mp3_bytes = f.read()
                 
-                # TOMBOL DOWNLOAD AKHIR
+                # MUNCULKAN TOMBOL DOWNLOAD
                 st.download_button(
-                    label="⬇️ DOWNLOAD MP3 SEKARANG",
+                    label="⬇️ DOWNLOAD MP3 KE HP/LAPTOP",
                     data=mp3_bytes,
                     file_name=os.path.basename(file_path),
                     mime="audio/mpeg"
                 )
-                
-                # Bersihkan file di server agar storage tidak penuh
-                os.remove(file_path)
             else:
-                st.error("Gagal memproses file.")
+                # Jika error, tampilkan pesan merah
+                st.error(f"Gagal memproses. Error: {judul}")
     else:
-        st.warning("Masukkan link dulu dong!")
+        st.warning("Link-nya mana?")
